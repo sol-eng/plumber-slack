@@ -1,7 +1,7 @@
 Plumber and the Slack API
 ================
 James Blair
-Wed Aug 15 23:53:32 2018
+Tue Aug 21 20:15:40 2018
 
 This asset shows how [`plumber`](https://www.rplumber.io) can be used to
 build a [Slack slash command](https://api.slack.com/slash-commands). The
@@ -307,7 +307,7 @@ function(req, res) {
   customer_ids <- unique(sim_data$id)
   customer_names <- unique(sim_data$name)
   
-  if (!req$ARGS %in% customer_ids & !req$ARGS %in% customer_names) {
+  if (!as.numeric(req$ARGS) %in% customer_ids & !req$ARGS %in% customer_names) {
     res$status <- 400
     return(
       list(
@@ -318,8 +318,8 @@ function(req, res) {
   }
   
   # Filter data to customer data based on provided id / name
-  if (req$ARGS %in% customer_ids) {
-    customer_id <- req$ARGS
+  if (as.numeric(req$ARGS) %in% customer_ids) {
+    customer_id <- as.numeric(req$ARGS)
     customer_data <- dplyr::filter(sim_data, id == customer_id)
     customer_name <- unique(customer_data$name)
   } else {

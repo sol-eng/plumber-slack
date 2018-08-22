@@ -62,7 +62,8 @@ sim_data <- r_data_frame(
        income)
   ) %>% 
   mutate(time = as.numeric(str_extract(time, "[0-9]+")),
-         calls = ifelse(calls < 0, 0, calls)) %>% 
+         calls = ifelse(calls < 0, 0, calls),
+         id = as.numeric(id)) %>% 
   arrange(id, time)
 
 sim_data
