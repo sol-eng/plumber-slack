@@ -384,8 +384,9 @@ function(req, res) {
 #+ get-plot-history
 #* Plot customer weekly calls
 #* @png
+#* @param cust_id ID of the customer
 #* @response 400 No customer with the given ID was found.
-#* @get /plot/history/<cust_id>
+#* @get /plot/history/<cust_id:int>
 function(cust_id, res) {
   # TODO: How to authenticate this endpoint / lock it down to requests from
   # Slack only?
