@@ -49,8 +49,6 @@ command in the
 
 ### Simulated data
 
-<img src="images/data.png" width="300">
-
 The API pulls data from a simulated customer dataset using the
 [`wakefield`](https://github.com/trinker/wakefield) package and the
 [`charlatan`](https://github.com/ropensci/charlatan) package. You can
