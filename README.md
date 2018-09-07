@@ -1,7 +1,7 @@
-Plumber and the Slack API
-================
-James Blair
-Tue Aug 21 20:15:40 2018
+
+# Plumber and the Slack API
+
+James Blair Tue Aug 21 20:15:40 2018
 
 This asset shows how [`plumber`](https://www.rplumber.io) can be used to
 build a [Slack slash command](https://api.slack.com/slash-commands). The
@@ -11,14 +11,61 @@ call history. The slash command provides access to customer status
 report as well as customer success rep reports directly from within
 Slack. The goal of this integration is to highlight the strengths of
 `plumber` and how it can be used to *reliably and securely integrate R
-with other products and services*.
+with other products and
+services*.
 
-![](images/slash-command-preview.png)
+[![](images/slash-command-preview.png)](http://colorado.rstudio.com/rsc/slack-plumber/__swagger__/)
 
-The API for this command is hosted on the [colorado demo
-server](http://colorado.rstudio.com/rsc/connect/#/apps/1292/access).
+## Using
 
-## Usage
+The demo API for the thest dataset is hosted on the [colorado demo
+server](http://colorado.rstudio.com/rsc/slack-plumber/__swagger__/).
+Once you have created the slack app and the slash command as described
+in [Getting Started](#getting-started), you can access the API from
+within the slack interface. Try the following commands using the `/cs`
+command in the
+[slackbot](https://get.slack.help/hc/en-us/articles/202026038-An-introduction-to-Slackbot).
+
+### Commands
+
+  - /cs help
+  - /cs status \<customer\_id\>
+  - /cs rep \<rep\_name\>
+  - /cs region \<region\_name\>
+
+### Examples
+
+/cs status 10
+
+![](images/cs-status-10.png)
+
+/cs rep Lovey Torp MD
+
+![](images/cs-rep-torp.png)
+
+/cs region east
+
+![](images/cs-region-east.png)
+
+### Simulated data
+
+![](images/data.png)
+
+The API pulls data from a simulated customer dataset using the
+[`wakefield`](https://github.com/trinker/wakefield) package and the
+[`charlatan`](https://github.com/ropensci/charlatan) package. You can
+use the following levels for `rep`, `region`, and `id`.
+
+| Rep                        | Region | ID  |
+| -------------------------- | ------ | --- |
+| Lovey Torp MD              | North  | 1   |
+| Marla Nitzsche             | South  | 2   |
+| Miss Halle Heidenreich DVM | East   | 3   |
+| Miss Jayne Sanford         | West   | 4   |
+| Ms. Arely Strosin PhD      |        | …   |
+| Sannie Schuppe DDS         |        | 100 |
+
+### Details
 
 Instead of registering a different command for each endpoint, the first
 argument provided to the slash command is the endpoint while the
