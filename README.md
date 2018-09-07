@@ -37,19 +37,19 @@ command in the
 
 /cs status 10
 
-![](images/cs-status-10.png)
+<img src="images/cs-status-10.png" width="300">
 
 /cs rep Lovey Torp MD
 
-![](images/cs-rep-torp.png)
+<img src="images/cs-rep-torp.png" width="300">
 
 /cs region east
 
-![](images/cs-region-east.png)
+<img src="images/cs-region-east.png" width="300">
 
 ### Simulated data
 
-![](images/data.png)
+<img src="images/data.png" width="300">
 
 The API pulls data from a simulated customer dataset using the
 [`wakefield`](https://github.com/trinker/wakefield) package and the
