@@ -32,19 +32,18 @@ within the slack interface.
 
 ### Examples
 
-Try the following examples using the `/cs`
-command with your
+Try the following examples using the `/cs` command with your
 [slackbot](https://get.slack.help/hc/en-us/articles/202026038-An-introduction-to-Slackbot).
 
-/cs status 10
+    /cs status 10
 
 <img src="images/cs-status-10.png" width="300">
 
-/cs rep Lovey Torp MD
+    /cs rep Lovey Torp MD
 
 <img src="images/cs-rep-torp.png" width="300">
 
-/cs region east
+    /cs region east
 
 <img src="images/cs-region-east.png" width="300">
 
