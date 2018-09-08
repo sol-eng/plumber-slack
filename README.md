@@ -25,10 +25,10 @@ within the slack interface.
 
 ### Commands
 
-  - /cs help
-  - /cs status \<customer\_id\>
-  - /cs rep \<rep\_name\>
-  - /cs region \<region\_name\>
+    /cs help
+    /cs status \<customer\_id\>
+    /cs rep \<rep\_name\>
+    /cs region \<region\_name\>
 
 ### Examples
 
