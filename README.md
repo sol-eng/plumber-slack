@@ -26,9 +26,9 @@ within the slack interface.
 ### Commands
 
     /cs help
-    /cs status \<customer\_id\>
-    /cs rep \<rep\_name\>
-    /cs region \<region\_name\>
+    /cs status <customer_id>
+    /cs rep <rep_name>
+    /cs region <region_name>
 
 ### Examples
 
