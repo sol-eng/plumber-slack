@@ -21,9 +21,7 @@ services*.
 Once you have created the slack app and the slash command as described
 in [Getting Started](#getting-started), you can access the
 [API](http://colorado.rstudio.com/rsc/slack-plumber/__swagger__/) from
-within the slack interface. Try the following commands using the `/cs`
-command in the
-[slackbot](https://get.slack.help/hc/en-us/articles/202026038-An-introduction-to-Slackbot).
+within the slack interface.
 
 ### Commands
 
@@ -33,6 +31,10 @@ command in the
   - /cs region \<region\_name\>
 
 ### Examples
+
+Try the following examples using the `/cs`
+command with your
+[slackbot](https://get.slack.help/hc/en-us/articles/202026038-An-introduction-to-Slackbot).
 
 /cs status 10
 
