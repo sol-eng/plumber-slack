@@ -18,10 +18,9 @@ services*.
 
 ## Using
 
-The demo API for the thest dataset is hosted on the [colorado demo
-server](http://colorado.rstudio.com/rsc/slack-plumber/__swagger__/).
 Once you have created the slack app and the slash command as described
-in [Getting Started](#getting-started), you can access the API from
+in [Getting Started](#getting-started), you can access the
+[API](http://colorado.rstudio.com/rsc/slack-plumber/__swagger__/) from
 within the slack interface. Try the following commands using the `/cs`
 command in the
 [slackbot](https://get.slack.help/hc/en-us/articles/202026038-An-introduction-to-Slackbot).
