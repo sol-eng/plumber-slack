@@ -3,6 +3,10 @@
 
 James Blair Tue Aug 21 20:15:40 2018
 
+*See [Slack and Plumber on R
+Views](https://rviews.rstudio.com/2018/08/30/slack-and-plumber-part-one/)
+for a discussion of this code.*
+
 This asset shows how [`plumber`](https://www.rplumber.io) can be used to
 build a [Slack slash command](https://api.slack.com/slash-commands). The
 API is built on top of a [simulated customer
@@ -80,7 +84,7 @@ issues while red indicates the customer has a high volume of calls,
 indicating a potential problem.
 
 Help for all available commands can be accessed by entering `/cs help`
-or simplly `/cs` into Slack.
+or simply `/cs` into Slack.
 
 -----
 
@@ -269,7 +273,7 @@ function(req){
 
 This filter is lifted straight from the [`plumber`
 docs](https://www.rplumber.io/docs/routing-and-input.html#filters). It
-simplly logs information about incoming requests and is helpful when
+simply logs information about incoming requests and is helpful when
 troubleshooting API performance and behavior.
 
 ### `@post /help`
