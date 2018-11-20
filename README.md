@@ -167,14 +167,19 @@ sim_data <- readr::read_rds("data/sim-data.rds")
 base_url <- config::get("base_url")
 
 # Utils ----
-plot_auth <- function(endpoint) {
+encrypt_string <- function(string) {
+  urltools::url_encode(safer::encrypt_string(paste(Sys.time(), string, sep = ";"),
+                                             key = Sys.getenv("SLACK_SIGNING_SECRET")))
+}
+
+plot_auth <- function(endpoint, time_limit = 5) {
   # Save current time to compare against endpoint time value
   current_time <- Sys.time()
   
   # Try to decrypt endpoint and extract user id
   tryCatch({
     # Decrypt endpoint using SLACK_SIGNING_SECRET
-    decrypted_endpoint <- safer::decrypt_string(urltools::url_decode(endpoint), 
+    decrypted_endpoint <- safer::decrypt_string(endpoint,
                                                 key = Sys.getenv("SLACK_SIGNING_SECRET"))
     # Split endpoint on ;
     endpoint_split <- unlist(strsplit(decrypted_endpoint, split = ";"))
@@ -185,7 +190,7 @@ plot_auth <- function(endpoint) {
     
     # If more than 5 seconds have passed since the request was generated, then
     # error
-    if (time_diff > 5) {
+    if (time_diff > time_limit) {
       "Unauthorized"
     } else {
       endpoint_split[2]
@@ -203,9 +208,14 @@ Here we setup the environment for the API by loading the appropriate
 packages and loading the simulated data. The
 [`config`](https://github.com/rstudio/config) package is used to store
 parameters that change based on the location of the API (if it’s local
-or deployed on RStudio Connect). We also provide the API title and
-description. Now, we’re ready to start defining the filters and
-endpoints of the API.
+or deployed on RStudio Connect).
+
+There are two utility functions that are defined here. Both are used to
+authorize requests to plot endpoints and will be described in greater
+detail later.
+
+We also provide the API title and description. Now, we’re ready to start
+defining the filters and endpoints of the API.
 
 ### `@filter route-endpoint`
 
@@ -244,15 +254,12 @@ request and routing the request to the appropriate endpoint. Additional
 details provided in `text` are added to the request object (`req`) as
 `req$ARGS`. This filter also routes authorized requests made to `/` to
 the `/help` endpoint. This way, someone in Slack can simply enter `/cs`
-to get help for the command. Unauthorized requests aren’t forwarded so
-that Swagger documentation for the API is available when the API is
-published to RStudio Connect.
+to get help for the command.
 
 ### `@filter logger`
 
 ``` r
 #* Log information about the incoming request
-#* @preempt verify
 #* @filter logger
 function(req){
   cat(as.character(Sys.time()), "-", 
@@ -276,8 +283,8 @@ troubleshooting API performance and behavior.
 #* @filter verify
 function(req, res) {
   # Forward requests coming to swagger endpoints
-  if (grepl("swagger", tolower(req$PATH_INFO))) forward()
-  
+  if (grepl("swagger", tolower(req$PATH_INFO))) return(forward())
+ 
   # Check for X_SLACK_REQUEST_TIMESTAMP header
   if (is.null(req$HTTP_X_SLACK_REQUEST_TIMESTAMP)) {
     res$status <- 401
@@ -324,7 +331,8 @@ Essentially, Slack provides a signing secret that is known to us (the
 app developers) and Slack. This signing secret is used in combination
 with request details to calculate a signature for each request. That
 signature is verified in this filter to ensure that the request came
-from Slack.
+from Slack. Requests made to Swagger endpoints are immediately forwarded
+without being authorized so that the Swagger UI can still be rendered.
 
 ### `@post /help`
 
@@ -428,9 +436,8 @@ function(req, res) {
         # History plot
         
         image_url = paste0(base_url, 
-                           "/plot/history/",
-                           urltools::url_encode(safer::encrypt_string(paste(Sys.time(), customer_id, sep = ";"),
-                                                                      key = Sys.getenv("SLACK_SIGNING_SECRET")))),
+                           "/plot/history?cust_secret=",
+                           encrypt_string(customer_id)),
         # Fields provide a way of communicating semi-tabular data in Slack
         fields = list(
           list(
@@ -454,21 +461,29 @@ This endpoint returns a status update for the specified customer. The
 update includes customer name, total calls, date of birth, and a plot of
 weekly calls for the previous 20 weeks. The response is serialized as
 unboxed JSON so that it matches the [format defined by
-Slack](https://api.slack.com/docs/message-attachments).
+Slack](https://api.slack.com/docs/message-attachments). Since the
+`image_url` used by Slack is accessed via a simple GET request, there is
+no baked in authentication. In order to prevent sensitive data being
+leaked through customer plots, we use the `encrypt_string()` function
+defined in the utils section of the API setup. This function encrypts
+the customer id along with the current datetime using the signing secret
+previously obtained from Slack. When this endpoint is invoked, the query
+string is decrypted and the datetime is compared to the current
+datetime. If more than 5 seconds have passed, the request is considered
+to be unauthorized.
 
-### `@get /plot/history/<endpoint>`
+### `@get /plot/history`
 
 ``` r
 #* Plot customer weekly calls
-#* @preempt verify
 #* @png
-#* @param endpoint encrypted value calculated in /status endpoint
+#* @param cust_secret encrypted value calculated in /status endpoint
 #* @response 400 No customer with the given ID was found.
-#* @get /plot/history/<endpoint:chr>
-function(endpoint, res) {
+#* @preempt verify
+#* @get /plot/history
+function(res, cust_secret) {
   # Authenticate that request came from /status
-  browser()
-  cust_id <- plot_auth(endpoint)
+  cust_id <- plot_auth(cust_secret)
   
   # Return unauthorized error if cust_id is "Unauthorized"
   if (cust_id == "Unauthorized") {
@@ -509,13 +524,12 @@ against it). This endpoint is used in the messages we return to Slack,
 and Slack just views this as an image URL to which it makes a `GET`
 request. In order to ensure that this works as expected, `#* @preempt
 verify` is added to the definition of this endpoint so that the `verify`
-filter doesn’t apply here. Additional work needs to be done in order to
-ensure that only authorized requests can be made to this endpoint so
-that customer history isn’t easily accessed by anyone. Also, note that
-this endpoint makes use of [dynamic
-routes](https://www.rplumber.io/docs/routing-and-input.html#dynamic-routes)
-so that the path includes the parameter passed to the underlying
-function.
+filter doesn’t apply here. As previously mentioned, this endpoint is
+secured using `plot_auth()`, which decrypts the query string and checks
+the timestamp to ensure that this request is made within 5 seconds of a
+request to `/status`. This effectively places an expiration date on
+calls to this endpoint. The default expiration is 5 seconds from when
+the call is made to `/status`.
 
 ### `@post /rep`
 
@@ -592,8 +606,8 @@ function(req, res) {
       list(
         title = paste0("Region: ", req$ARGS),
         fallback = paste0("Region: ", req$ARGS),
-        image_url = paste0(base_url, "/plot/region/",
-                           tolower(req$ARGS)),
+        image_url = paste0(base_url, "/plot/region?region_name=",
+                           encrypt_string(tolower(req$ARGS))),
         fields = list(
           list(
             title = "Total Clients",
@@ -608,19 +622,23 @@ function(req, res) {
 ```
 
 This endpoint posts a Slack message that contains a plot of the trend
-for a given region.
+for a given region. This plot is secured using the same mechanism as
+`/plot/history`.
 
 ### `@get /plot/region/<region_name>`
 
 ``` r
 #* Plot region data
-#* @preempt verify
 #* @png
 #* @param region_name Name of region to be plotted
-#* @get /plot/region/<region_name:chr>
+#* @preempt verify
+#* @get /plot/region
 function(region_name, req, res) {
-  # Throw error if region isn't valid
-  if (!tolower(region_name) %in% tolower(sim_data$region)) {
+  region_name <- plot_auth(region_name)
+  if (region_name == "Unauthorized") {
+    res$status <- 401
+    stop("Unauthorized request")
+  } else if (!tolower(region_name) %in% tolower(sim_data$region)) {
     res$status <- 400
     stop("Region " , region_name, " not found.")
   }
@@ -643,7 +661,9 @@ function(region_name, req, res) {
 
 This endpoint creates a plot for a specific region’s performance. Much
 like the customer history plot, this endpoint uses `#* @preempt verify`
-so that the `verify` filter does not apply to this endpoint.
+so that the `verify` filter does not apply to this endpoint and it makes
+use of `plot_auth()` to ensure only authorized requests are responded
+to.
 
 ## Running Locally
 

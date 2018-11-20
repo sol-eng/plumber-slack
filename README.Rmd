@@ -158,9 +158,13 @@ creating our API filters and endpoints.
 Here we setup the environment for the API by loading the appropriate packages
 and loading the simulated data. The [`config`](https://github.com/rstudio/config) 
 package is used to store parameters that change based on the location of the
-API (if it's local or deployed on RStudio Connect). We also provide the API title
-and description. Now, we're ready to start defining the filters and endpoints of
-the API.
+API (if it's local or deployed on RStudio Connect).
+
+There are two utility functions that are defined here. Both are used to authorize
+requests to plot endpoints and will be described in greater detail later.
+
+We also provide the API title and description. Now, we're ready to start defining 
+the filters and endpoints of the API.
 
 ### `@filter route-endpoint`
 ```{r filter-route-endpoint}
@@ -170,9 +174,7 @@ This filter is responsible for parsing the `text` field of the incoming request
 and routing the request to the appropriate endpoint. Additional details provided
 in `text` are added to the request object (`req`) as `req$ARGS`. This filter
 also routes authorized requests made to `/` to the `/help` endpoint. This way,
-someone in Slack can simply enter `/cs` to get help for the command. Unauthorized
-requests aren't forwarded so that Swagger documentation for the API is available
-when the API is published to RStudio Connect.
+someone in Slack can simply enter `/cs` to get help for the command.
 
 ### `@filter logger`
 ```{r filter-logger}
@@ -193,7 +195,9 @@ can be found in [Slack's documentation](https://api.slack.com/docs/verifying-req
 Essentially, Slack provides a signing secret that is known to us (the app
 developers) and Slack. This signing secret is used in combination with request
 details to calculate a signature for each request. That signature is
-verified in this filter to ensure that the request came from Slack.
+verified in this filter to ensure that the request came from Slack. Requests made
+to Swagger endpoints are immediately forwarded without being authorized so that
+the Swagger UI can still be rendered.
 
 ### `@post /help`
 ```{r post-help}
@@ -213,8 +217,16 @@ This endpoint returns a status update for the specified customer. The update
 includes customer name, total calls, date of birth, and a plot of weekly calls
 for the previous 20 weeks. The response is serialized as unboxed JSON so that
 it matches the [format defined by Slack](https://api.slack.com/docs/message-attachments).
+Since the `image_url` used by Slack is accessed via a simple GET request, there
+is no baked in authentication. In order to prevent sensitive data being leaked
+through customer plots, we use the `encrypt_string()` function defined in the 
+utils section of the API setup. This function encrypts the customer id along with
+the current datetime using the signing secret previously obtained from Slack.
+When this endpoint is invoked, the query string is decrypted and the datetime is 
+compared to the current datetime. If more than 5 seconds have passed, the request
+is considered to be unauthorized.
 
-### `@get /plot/history/<endpoint>`
+### `@get /plot/history`
 ```{r get-plot-history}
 ```
 
@@ -225,11 +237,11 @@ send some secret with the request and verify against it). This endpoint is used
 in the messages we return to Slack, and Slack just views this as an image URL
 to which it makes a `GET` request. In order to ensure that this works as expected,
 `#* @preempt verify` is added to the definition of this endpoint so that the
-`verify` filter doesn't apply here. Additional work needs to be done in order
-to ensure that only authorized requests can be made to this endpoint so that 
-customer history isn't easily accessed by anyone. Also, note that this endpoint
-makes use of [dynamic routes](https://www.rplumber.io/docs/routing-and-input.html#dynamic-routes)
-so that the path includes the parameter passed to the underlying function.
+`verify` filter doesn't apply here. As previously mentioned, this endpoint is
+secured using `plot_auth()`, which decrypts the query string and checks the
+timestamp to ensure that this request is made within 5 seconds of a request to
+`/status`. This effectively places an expiration date on calls to this endpoint.
+The default expiration is 5 seconds from when the call is made to `/status`.
 
 ### `@post /rep`
 ```{r post-rep}
@@ -243,7 +255,7 @@ total clients and calls / client for that rep.
 ```
 
 This endpoint posts a Slack message that contains a plot of the trend for a 
-given region.
+given region. This plot is secured using the same mechanism as `/plot/history`.
 
 ### `@get /plot/region/<region_name>`
 ```{r get-plot-region}
@@ -251,7 +263,8 @@ given region.
 
 This endpoint creates a plot for a specific region's performance. Much like the
 customer history plot, this endpoint uses `#* @preempt verify` so that the 
-`verify` filter does not apply to this endpoint.
+`verify` filter does not apply to this endpoint and it makes use of `plot_auth()`
+to ensure only authorized requests are responded to.
 
 ## Running Locally
 Interacting with these APIs locally can be a bit of a challenge since most
