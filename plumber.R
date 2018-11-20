@@ -13,14 +13,19 @@ sim_data <- readr::read_rds("data/sim-data.rds")
 base_url <- config::get("base_url")
 
 # Utils ----
-plot_auth <- function(endpoint) {
+encrypt_string <- function(string) {
+  urltools::url_encode(safer::encrypt_string(paste(Sys.time(), string, sep = ";"),
+                                             key = Sys.getenv("SLACK_SIGNING_SECRET")))
+}
+
+plot_auth <- function(endpoint, time_limit = 5) {
   # Save current time to compare against endpoint time value
   current_time <- Sys.time()
   
   # Try to decrypt endpoint and extract user id
   tryCatch({
     # Decrypt endpoint using SLACK_SIGNING_SECRET
-    decrypted_endpoint <- safer::decrypt_string(urltools::url_decode(endpoint), 
+    decrypted_endpoint <- safer::decrypt_string(endpoint,
                                                 key = Sys.getenv("SLACK_SIGNING_SECRET"))
     # Split endpoint on ;
     endpoint_split <- unlist(strsplit(decrypted_endpoint, split = ";"))
@@ -31,7 +36,7 @@ plot_auth <- function(endpoint) {
     
     # If more than 5 seconds have passed since the request was generated, then
     # error
-    if (time_diff > 5) {
+    if (time_diff > time_limit) {
       "Unauthorized"
     } else {
       endpoint_split[2]
@@ -116,7 +121,7 @@ function(req){
 function(req, res) {
   # Forward requests coming to swagger endpoints
   if (grepl("swagger", tolower(req$PATH_INFO))) return(forward())
-  
+ 
   # Check for X_SLACK_REQUEST_TIMESTAMP header
   if (is.null(req$HTTP_X_SLACK_REQUEST_TIMESTAMP)) {
     res$status <- 401
@@ -246,9 +251,8 @@ function(req, res) {
         # History plot
         
         image_url = paste0(base_url, 
-                           "/plot/history/",
-                           urltools::url_encode(safer::encrypt_string(paste(Sys.time(), customer_id, sep = ";"),
-                                                                      key = Sys.getenv("SLACK_SIGNING_SECRET")))),
+                           "/plot/history?cust_secret=",
+                           encrypt_string(customer_id)),
         # Fields provide a way of communicating semi-tabular data in Slack
         fields = list(
           list(
@@ -269,15 +273,14 @@ function(req, res) {
 
 ## ---- get-plot-history
 #* Plot customer weekly calls
-#* @preempt verify
 #* @png
-#* @param endpoint encrypted value calculated in /status endpoint
+#* @param cust_secret encrypted value calculated in /status endpoint
 #* @response 400 No customer with the given ID was found.
-#* @get /plot/history/<endpoint:chr>
-function(endpoint, res) {
+#* @preempt verify
+#* @get /plot/history
+function(res, cust_secret) {
   # Authenticate that request came from /status
-  browser()
-  cust_id <- plot_auth(endpoint)
+  cust_id <- plot_auth(cust_secret)
   
   # Return unauthorized error if cust_id is "Unauthorized"
   if (cust_id == "Unauthorized") {
@@ -376,8 +379,8 @@ function(req, res) {
       list(
         title = paste0("Region: ", req$ARGS),
         fallback = paste0("Region: ", req$ARGS),
-        image_url = paste0(base_url, "/plot/region/",
-                           tolower(req$ARGS)),
+        image_url = paste0(base_url, "/plot/region?region_name=",
+                           encrypt_string(tolower(req$ARGS))),
         fields = list(
           list(
             title = "Total Clients",
@@ -395,10 +398,13 @@ function(req, res) {
 #* @png
 #* @param region_name Name of region to be plotted
 #* @preempt verify
-#* @get /plot/region/<region_name:chr>
+#* @get /plot/region
 function(region_name, req, res) {
-  # Throw error if region isn't valid
-  if (!tolower(region_name) %in% tolower(sim_data$region)) {
+  region_name <- plot_auth(region_name)
+  if (region_name == "Unauthorized") {
+    res$status <- 401
+    stop("Unauthorized request")
+  } else if (!tolower(region_name) %in% tolower(sim_data$region)) {
     res$status <- 400
     stop("Region " , region_name, " not found.")
   }
