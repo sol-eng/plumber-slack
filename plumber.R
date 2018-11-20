@@ -115,7 +115,7 @@ function(req){
 #* @filter verify
 function(req, res) {
   # Forward requests coming to swagger endpoints
-  if (grepl("swagger", tolower(req$PATH_INFO))) forward()
+  if (grepl("swagger", tolower(req$PATH_INFO))) return(forward())
   
   # Check for X_SLACK_REQUEST_TIMESTAMP header
   if (is.null(req$HTTP_X_SLACK_REQUEST_TIMESTAMP)) {
