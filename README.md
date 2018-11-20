@@ -1,7 +1,5 @@
-
-# Plumber and the Slack API
-
-James Blair Tue Aug 21 20:15:40 2018
+Plumber and the Slack API
+================
 
 *See [Slack and Plumber on R
 Views](https://rviews.rstudio.com/2018/08/30/slack-and-plumber-part-one/)
@@ -169,33 +167,32 @@ sim_data <- readr::read_rds("data/sim-data.rds")
 base_url <- config::get("base_url")
 
 # Utils ----
-slack_auth <- function(req) {
-  # Verify request came from Slack ----
-  if (is.null(req$HTTP_X_SLACK_REQUEST_TIMESTAMP)) {
-    return("401")
-  }
+plot_auth <- function(endpoint) {
+  # Save current time to compare against endpoint time value
+  current_time <- Sys.time()
   
-  base_string <- paste(
-    "v0",
-    req$HTTP_X_SLACK_REQUEST_TIMESTAMP,
-    req$postBody,
-    sep = ":"
+  # Try to decrypt endpoint and extract user id
+  tryCatch({
+    # Decrypt endpoint using SLACK_SIGNING_SECRET
+    decrypted_endpoint <- safer::decrypt_string(urltools::url_decode(endpoint), 
+                                                key = Sys.getenv("SLACK_SIGNING_SECRET"))
+    # Split endpoint on ;
+    endpoint_split <- unlist(strsplit(decrypted_endpoint, split = ";"))
+    # Convert time
+    endpoint_time <- as.POSIXct(endpoint_split[1])
+    # Calculate time difference
+    time_diff <- difftime(current_time, endpoint_time, units = "secs")
+    
+    # If more than 5 seconds have passed since the request was generated, then
+    # error
+    if (time_diff > 5) {
+      "Unauthorized"
+    } else {
+      endpoint_split[2]
+    }
+  },
+  error = function(e) "Unauthorized"
   )
-  
-  # Slack Signing secret is available as environment variable
-  # SLACK_SIGNING_SECRET
-  computed_request_signature <- paste0(
-    "v0=",
-    openssl::sha256(base_string, Sys.getenv("SLACK_SIGNING_SECRET"))
-  )
-  
-  # If the computed request signature doesn't match the signature provided in the
-  # request, return an error
-  if (!identical(req$HTTP_X_SLACK_SIGNATURE, computed_request_signature)) {
-    "401"
-  } else {
-    "200"
-  }
 }
 
 #* @apiTitle CS Slack Application API
@@ -206,16 +203,9 @@ Here we setup the environment for the API by loading the appropriate
 packages and loading the simulated data. The
 [`config`](https://github.com/rstudio/config) package is used to store
 parameters that change based on the location of the API (if it’s local
-or deployed on RStudio Connect). `slack_auth()` is a helper function
-that is used to confirm that incoming requests are indeed coming from
-Slack and not an unauthorized source. Details about authenticating Slack
-requests can be found in [Slack’s
-documentation](https://api.slack.com/docs/verifying-requests-from-slack).
-Essentially, Slack provides a signing secret that is known to us (the
-app developers) and Slack. This signing secret is used in combination
-with request details to calculate a signature for each request. That
-signature is verified in `slack_auth()` to ensure that the request came
-from Slack.
+or deployed on RStudio Connect). We also provide the API title and
+description. Now, we’re ready to start defining the filters and
+endpoints of the API.
 
 ### `@filter route-endpoint`
 
@@ -239,7 +229,7 @@ function(req, text = "") {
       paste0(collapse = " ")
   }
   
-  if (req$PATH_INFO == "/" & slack_auth(req) == "200") {
+  if (req$PATH_INFO == "/") {
     # If no endpoint is provided (PATH_INFO is just "/") then forward to /help
     req$PATH_INFO <- "/help"
   }
@@ -256,10 +246,13 @@ details provided in `text` are added to the request object (`req`) as
 the `/help` endpoint. This way, someone in Slack can simply enter `/cs`
 to get help for the command. Unauthorized requests aren’t forwarded so
 that Swagger documentation for the API is available when the API is
-published to RStudio Connect. \#\#\# `@filter logger`
+published to RStudio Connect.
+
+### `@filter logger`
 
 ``` r
 #* Log information about the incoming request
+#* @preempt verify
 #* @filter logger
 function(req){
   cat(as.character(Sys.time()), "-", 
@@ -276,6 +269,63 @@ docs](https://www.rplumber.io/docs/routing-and-input.html#filters). It
 simply logs information about incoming requests and is helpful when
 troubleshooting API performance and behavior.
 
+### `@filter verify`
+
+``` r
+#* Verify incoming requests
+#* @filter verify
+function(req, res) {
+  # Forward requests coming to swagger endpoints
+  if (grepl("swagger", tolower(req$PATH_INFO))) forward()
+  
+  # Check for X_SLACK_REQUEST_TIMESTAMP header
+  if (is.null(req$HTTP_X_SLACK_REQUEST_TIMESTAMP)) {
+    res$status <- 401
+  }
+  
+  # Build base string
+  base_string <- paste(
+    "v0",
+    req$HTTP_X_SLACK_REQUEST_TIMESTAMP,
+    req$postBody,
+    sep = ":"
+  )
+  
+  # Slack Signing secret is available as environment variable
+  # SLACK_SIGNING_SECRET
+  computed_request_signature <- paste0(
+    "v0=",
+    openssl::sha256(base_string, Sys.getenv("SLACK_SIGNING_SECRET"))
+  )
+  
+  # If the computed request signature doesn't match the signature provided in the
+  # request, set status of response to 401
+  if (!identical(req$HTTP_X_SLACK_SIGNATURE, computed_request_signature)) {
+    res$status <- 401
+  } else {
+    res$status <- 200
+  }
+  
+  if (res$status == 401) {
+    list(
+      text = "Error: Invalid request"
+    )
+  } else {
+    forward()
+  }
+}
+```
+
+This filter is used to to confirm that incoming requests are indeed
+coming from Slack and not an unauthorized source. Details about
+authenticating Slack requests can be found in [Slack’s
+documentation](https://api.slack.com/docs/verifying-requests-from-slack).
+Essentially, Slack provides a signing secret that is known to us (the
+app developers) and Slack. This signing secret is used in combination
+with request details to calculate a signature for each request. That
+signature is verified in this filter to ensure that the request came
+from Slack.
+
 ### `@post /help`
 
 ``` r
@@ -283,17 +333,6 @@ troubleshooting API performance and behavior.
 #* @serializer unboxedJSON
 #* @post /help
 function(req, res) {
-  # Authorize request
-  status <- slack_auth(req)
-  if (status == "401") {
-    res$status <- 401
-    return(
-      list(
-        text = "Error: Invalid request."
-      )
-    )
-  }
-  
   list(
     # response type - ephemeral indicates the response will only be seen by the
     # user who invoked the slash command as opposed to the entire channel
@@ -339,15 +378,6 @@ specific slash command.
 #* @serializer unboxedJSON
 #* @post /status
 function(req, res) {
-  # Authenticate request
-  status <- slack_auth(req)
-  if (status == "401") {
-    res$status <- 401
-    return(
-      list(text = "Error: Invalid request.")
-    )
-  }
-  
   # Check req$ARGS and match to customer - if no customer match is found, return
   # an error
   
@@ -396,9 +426,11 @@ function(req, res) {
         title = paste0("Status update for ", customer_name, " (", customer_id, ")"),
         fallback = paste0("Status update for ", customer_name, " (", customer_id, ")"),
         # History plot
-        # TODO: Can this be made aware of where this is deployed? Is there a way
-        # to internally reference another endpoint?
-        image_url = paste0(base_url, "/plot/history/", customer_id),
+        
+        image_url = paste0(base_url, 
+                           "/plot/history/",
+                           urltools::url_encode(safer::encrypt_string(paste(Sys.time(), customer_id, sep = ";"),
+                                                                      key = Sys.getenv("SLACK_SIGNING_SECRET")))),
         # Fields provide a way of communicating semi-tabular data in Slack
         fields = list(
           list(
@@ -424,19 +456,25 @@ weekly calls for the previous 20 weeks. The response is serialized as
 unboxed JSON so that it matches the [format defined by
 Slack](https://api.slack.com/docs/message-attachments).
 
-### `@get /plot/history/<cust_id>`
+### `@get /plot/history/<endpoint>`
 
 ``` r
 #* Plot customer weekly calls
+#* @preempt verify
 #* @png
+#* @param endpoint encrypted value calculated in /status endpoint
 #* @response 400 No customer with the given ID was found.
-#* @get /plot/history/<cust_id>
-function(cust_id, res) {
-  # TODO: How to authenticate this endpoint / lock it down to requests from
-  # Slack only?
+#* @get /plot/history/<endpoint:chr>
+function(endpoint, res) {
+  # Authenticate that request came from /status
+  browser()
+  cust_id <- plot_auth(endpoint)
   
-  # Throw error if cust_id doesn't exist in data
-  if (!cust_id %in% sim_data$id) {
+  # Return unauthorized error if cust_id is "Unauthorized"
+  if (cust_id == "Unauthorized") {
+    res$status <- 401
+    stop("Unauthorized request")
+  } else if (!cust_id %in% sim_data$id) {
     res$status <- 400
     stop("Customer id" , cust_id, " not found.")
   }
@@ -469,10 +507,12 @@ request that’s made, so it is difficult to authenticate the incoming
 request (ie, we can’t send some secret with the request and verify
 against it). This endpoint is used in the messages we return to Slack,
 and Slack just views this as an image URL to which it makes a `GET`
-request. Additional work needs to be done in order to ensure that only
-authorized requests can be made to this endpoint so that customer
-history isn’t easily accessed by anyone. Also, note that this endpoint
-makes use of [dynamic
+request. In order to ensure that this works as expected, `#* @preempt
+verify` is added to the definition of this endpoint so that the `verify`
+filter doesn’t apply here. Additional work needs to be done in order to
+ensure that only authorized requests can be made to this endpoint so
+that customer history isn’t easily accessed by anyone. Also, note that
+this endpoint makes use of [dynamic
 routes](https://www.rplumber.io/docs/routing-and-input.html#dynamic-routes)
 so that the path includes the parameter passed to the underlying
 function.
@@ -484,15 +524,6 @@ function.
 #* @serializer unboxedJSON
 #* @post /rep
 function(req, res) {
-  # Authenticate request
-  status <- slack_auth(req)
-  if (status == "401") {
-    res$status <- 401
-    return(
-      list(text = "Error: Invalid request.")
-    )
-  }
-  
   # Check to ensure rep exists in data
   if (!req$ARGS %in% unique(sim_data$rep)) {
     return(
@@ -543,15 +574,6 @@ specifically total clients and calls / client for that rep.
 #* @serializer unboxedJSON
 #* @post /region
 function(req, res) {
-  # Authorize request
-  status <- slack_auth(req)
-  if (status == "401") {
-    res$status <- 401
-    return(
-      list(text = "Error: Invalid request.")
-    )
-  }
-  
   # Check to ensure provided region value exists in data
   if (!tolower(req$ARGS) %in% tolower(unique(sim_data$region))) {
     return(
@@ -592,8 +614,10 @@ for a given region.
 
 ``` r
 #* Plot region data
+#* @preempt verify
 #* @png
-#* @get /plot/region/<region_name>
+#* @param region_name Name of region to be plotted
+#* @get /plot/region/<region_name:chr>
 function(region_name, req, res) {
   # Throw error if region isn't valid
   if (!tolower(region_name) %in% tolower(sim_data$region)) {
@@ -617,7 +641,9 @@ function(region_name, req, res) {
 }
 ```
 
-This endpoint creates a plot for a specific region’s performance.
+This endpoint creates a plot for a specific region’s performance. Much
+like the customer history plot, this endpoint uses `#* @preempt verify`
+so that the `verify` filter does not apply to this endpoint.
 
 ## Running Locally
 
