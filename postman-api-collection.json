@@ -12,10 +12,21 @@
 					"listen": "prerequest",
 					"script": {
 						"id": "293ba85f-d353-4f9d-a77b-8a0379c3ea87",
-						"type": "text/javascript",
 						"exec": [
 							""
-						]
+						],
+						"type": "text/javascript"
+					}
+				},
+				{
+					"listen": "test",
+					"script": {
+						"id": "91416131-0c30-47b5-ba0c-4f18932c7471",
+						"exec": [
+							"var response = JSON.parse(responseBody);",
+							"postman.setEnvironmentVariable(\"plot_history\", response.attachments[0].image_url)"
+						],
+						"type": "text/javascript"
 					}
 				}
 			],
@@ -45,67 +56,56 @@
 						{
 							"key": "team_id",
 							"value": "T0001",
-							"sessionValue": "T0001",
 							"type": "text"
 						},
 						{
 							"key": "team_domain",
 							"value": "example",
-							"sessionValue": "example",
 							"type": "text"
 						},
 						{
 							"key": "enterprise_id",
 							"value": "E0001",
-							"sessionValue": "E0001",
 							"type": "text"
 						},
 						{
 							"key": "enterprise_name",
 							"value": "RStudio",
-							"sessionValue": "RStudio",
 							"type": "text"
 						},
 						{
 							"key": "channel_name",
 							"value": "test",
-							"sessionValue": "test",
 							"type": "text"
 						},
 						{
 							"key": "user_id",
 							"value": "U2147483697",
-							"sessionValue": "U2147483697",
 							"type": "text"
 						},
 						{
 							"key": "user_name",
 							"value": "James",
-							"sessionValue": "James",
 							"type": "text"
 						},
 						{
 							"key": "command",
 							"value": "/cs",
-							"sessionValue": "/cs",
 							"type": "text"
 						},
 						{
 							"key": "text",
-							"value": "status 002",
-							"sessionValue": "status 001",
+							"value": "status 89",
 							"type": "text"
 						},
 						{
 							"key": "response_url",
 							"value": "https://hooks.slack.com/commands/1234/5678",
-							"sessionValue": "https://hooks.slack.com/commands/1234/5678",
 							"type": "text"
 						},
 						{
 							"key": "trigger_id",
 							"value": "13345224609.738474920.8088930838d88f008e0",
-							"sessionValue": "13345224609.738474920.8088930838d88f008e0",
 							"type": "text"
 						}
 					]
@@ -124,20 +124,23 @@
 			"name": "Plot History",
 			"request": {
 				"method": "GET",
-				"header": [],
-				"body": {},
+				"header": [
+					{
+						"key": "User-Agent",
+						"value": "James - (Postman)"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": ""
+				},
 				"url": {
-					"raw": "{{base_url}}/plot/history/089",
+					"raw": "{{plot_history}}",
 					"host": [
-						"{{base_url}}"
-					],
-					"path": [
-						"plot",
-						"history",
-						"089"
+						"{{plot_history}}"
 					]
 				},
-				"description": "Retrieves plot history for specific customer ID"
+				"description": "This is based on an environment variable that is set when POST Customer Status is used. It must be called within 5 seconds of calling Customer Status."
 			},
 			"response": []
 		},
@@ -173,7 +176,7 @@
 						"help"
 					]
 				},
-				"description": "Ask for help explicity (call `/help` endpoint)"
+				"description": "Ask for help explicitly (call `/help` endpoint)"
 			},
 			"response": []
 		},
@@ -304,6 +307,19 @@
 		},
 		{
 			"name": "Region",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"id": "f4d05572-3cad-4a0c-b110-60dcc5a9c107",
+						"exec": [
+							"var response = JSON.parse(responseBody);",
+							"postman.setEnvironmentVariable(\"plot_region\", response.attachments[0].image_url)"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
 			"request": {
 				"method": "POST",
 				"header": [
@@ -369,7 +385,7 @@
 						},
 						{
 							"key": "text",
-							"value": "status 002",
+							"value": "region north",
 							"type": "text"
 						},
 						{
@@ -399,10 +415,49 @@
 			"request": {
 				"method": "GET",
 				"header": [],
-				"body": {},
-				"url": {
+				"body": {
+					"mode": "raw",
 					"raw": ""
-				}
+				},
+				"url": {
+					"raw": "{{base_url}}/plot/region?region_name=ZkxDwCzsd9hyO%2bihzC5OTvkAFzk%2b945JpNK7dplTFXI8NVg4I1pjtZg%3d",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"plot",
+						"region"
+					],
+					"query": [
+						{
+							"key": "region_name",
+							"value": "ZkxDwCzsd9hyO%2bihzC5OTvkAFzk%2b945JpNK7dplTFXI8NVg4I1pjtZg%3d"
+						}
+					]
+				},
+				"description": "This endpoint is set as an environment variable ({{plot_region}}) that is set when POST Region is called. This endpoint must be called within 5 seconds of calling Region."
+			},
+			"response": []
+		},
+		{
+			"name": "Swagger",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": ""
+				},
+				"url": {
+					"raw": "{{base_url}}/swagger.json",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"swagger.json"
+					]
+				},
+				"description": "Get Swagger json"
 			},
 			"response": []
 		}
