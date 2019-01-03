@@ -2,4 +2,4 @@ default:
   base_url: "localhost:5762"
   
 rsconnect:
-  base_url: "http://colorado.rstudio.com/rsc/slack-plumber"
+  base_url: "https://colorado.rstudio.com/rsc/slack-plumber"

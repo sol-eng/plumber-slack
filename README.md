@@ -16,13 +16,13 @@ Slack. The goal of this integration is to highlight the strengths of
 with other products and
 services*.
 
-[![](images/slash-command-preview.png)](http://colorado.rstudio.com/rsc/slack-plumber/__swagger__/)
+[![](images/slash-command-preview.png)](https://colorado.rstudio.com/rsc/slack-plumber/__swagger__/)
 
 ## Using
 
 Once you have created the slack app and the slash command as described
 in [Getting Started](#getting-started), you can access the
-[API](http://colorado.rstudio.com/rsc/slack-plumber/__swagger__/) from
+[API](https://colorado.rstudio.com/rsc/slack-plumber/__swagger__/) from
 within the slack interface.
 
 ### Commands
