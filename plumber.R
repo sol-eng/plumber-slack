@@ -18,7 +18,7 @@ encrypt_string <- function(string) {
                                              key = Sys.getenv("SLACK_SIGNING_SECRET")))
 }
 
-plot_auth <- function(endpoint, time_limit = 5) {
+plot_auth <- function(endpoint, time_limit = 15) {
   # Save current time to compare against endpoint time value
   current_time <- Sys.time()
   
